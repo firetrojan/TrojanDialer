@@ -11,7 +11,8 @@ import android.util.Log
  * by calling [respondToCall] within five seconds of [onScreenCall] being
  * invoked, otherwise the call is treated as blocked. Blocking is therefore not
  * an option here: this service always responds with
- * [CallResponse.Builder.ALLOW] and leaves any spam filtering to the classifier
+ * an empty CallResponse.Builder (the platform only offers setDisallowCall, so
+ * not calling it allows the call) and leaves spam filtering to the classifier
  * that already runs elsewhere in the messaging pipeline.
  *
  * The previous version overrode `onScreenCall(Call, IBinder, Int)` and also
@@ -32,15 +33,12 @@ class CallScreeningServiceImpl : CallScreeningService() {
      */
     override fun onScreenCall(callDetails: Call.Details) {
         val number = callDetails.handle?.schemeSpecificPart.orEmpty()
-        val isIncoming = callDetails.hasProperty(Call.Details.PROPERTY_INCOMING)
-        Log.d(TAG, "Screening call from $number (incoming=$isIncoming)")
+        Log.d(TAG, "Screening call from $number")
 
-        // Always allow: letting the five-second deadline lapse would block the
-        // call, which is the opposite of what a default dialer should do.
-        respondToCall(callDetails, CallResponse.Builder()
-            .setAllowCall(true)
-            .setSkipCallLog(false)
-            .setSkipNotification(false)
-            .build())
+        // The platform requires a response within five seconds, and the only
+        // builder option is setDisallowCall. An empty builder therefore allows
+        // the call, which is what a default dialer should do; letting the
+        // deadline lapse would block it.
+        respondToCall(callDetails, CallResponse.Builder().build())
     }
 }

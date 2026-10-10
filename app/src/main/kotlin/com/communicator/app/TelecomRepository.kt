@@ -55,14 +55,17 @@ class TelecomRepository(private val context: Context) {
     }
 
     private fun refreshCallCapableAccounts() {
-        val handles = telecomManager.callCapablePhoneAccounts
-            .filter { it.hasCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER) }
+        val handles = telecomManager.callCapablePhoneAccounts.filter { handle ->
+            // PhoneAccountHandle carries no capabilities; the PhoneAccount does.
+            telecomManager.getPhoneAccount(handle)
+                ?.hasCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER) == true
+        }
         _callCapableAccounts.value = handles
     }
 
     private fun refreshDefaultDialerStatus() {
         val packageName = context.packageName
-        val isDefault = telecomManager.isDefaultDialer(packageName)
+        val isDefault = telecomManager.defaultDialerPackage == packageName
         _isDefaultDialer.value = isDefault
     }
 
@@ -78,12 +81,14 @@ class TelecomRepository(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && roleManager != null) {
             return roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
         }
-        return telecomManager.isDefaultDialer(context.packageName)
+        return telecomManager.defaultDialerPackage == context.packageName
     }
 
     fun getCallCapablePhoneAccounts(): List<PhoneAccountHandle> {
-        return telecomManager.callCapablePhoneAccounts
-            .filter { it.hasCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER) }
+        return telecomManager.callCapablePhoneAccounts.filter { handle ->
+            telecomManager.getPhoneAccount(handle)
+                ?.hasCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER) == true
+        }
     }
 
     fun getActiveSubscriptionInfoList(): List<SubscriptionInfo> {
@@ -220,7 +225,10 @@ class TelecomRepository(private val context: Context) {
     }
 
     fun getSubscriptionInfo(subscriptionId: Int): SubscriptionInfo? {
-        return subscriptionManager.getSubscriptionInfo(subscriptionId)
+        // getSubscriptionInfo(int) is not public SDK, so the subscription is
+        // looked up in the active list instead.
+        return subscriptionManager.activeSubscriptionInfoList
+            ?.firstOrNull { it.subscriptionId == subscriptionId }
     }
 
     fun getPhoneAccountHandleForSubscription(subscriptionId: Int): PhoneAccountHandle? {

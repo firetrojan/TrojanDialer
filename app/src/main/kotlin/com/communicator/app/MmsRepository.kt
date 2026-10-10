@@ -117,7 +117,7 @@ class MmsRepository(
         return transport?.getMms(mmsId)
     }
 
-    suspend fun getThreads(): Flow<List<MmsThread>> {
+    suspend fun getThreads(): Flow<MmsThread> {
         val transport = getActiveTransport()
         return transport?.getThreads() ?: kotlinx.coroutines.flow.flow { }
     }

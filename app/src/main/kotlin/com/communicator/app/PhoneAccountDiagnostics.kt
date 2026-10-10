@@ -209,4 +209,12 @@ class PhoneAccountDiagnostics(private val context: Context) {
         LOW,
         UNKNOWN
     }
+
+    companion object {
+        /** Bundle key telecom uses for the subscription id in PhoneAccount extras. */
+        private const val KEY_SUBSCRIPTION_ID = "subscription_id"
+
+        /** Bundle key telecom uses for the carrier name in PhoneAccount extras. */
+        private const val KEY_CARRIER_NAME = "carrier_name"
+    }
 }
