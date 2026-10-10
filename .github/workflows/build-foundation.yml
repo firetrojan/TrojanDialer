@@ -63,11 +63,23 @@ jobs:
         id: deps
         run: ./gradlew :app:dependencies --configuration debugRuntimeClasspath $GRADLE_ARGS
 
-      # Compile every module's Kotlin. :data:core alone proved nothing about
-      # the other 25 modules; this is the first step that does.
+      # Compile every module's Kotlin, so one module passing proves nothing
+      # about the rest.
+      #
+      # :communication:sip and :ui:sip are excluded because
+      # com.cocolove2.library:pjsip:1.0.1 does not exist on Maven Central or
+      # Google Maven (both return 404), so those two modules cannot resolve a
+      # single dependency and can never compile. :app already excludes them and
+      # declares no SIP capability, so excluding them here costs no coverage of
+      # the shipped app. The modules stay in settings.gradle.kts and on disk;
+      # they are EXTERNAL_DEPENDENCY_MISSING, not deleted.
       - name: Compile all modules
         id: compile
-        run: ./gradlew compileDebugKotlin $GRADLE_ARGS
+        run: |
+          ./gradlew compileDebugKotlin \
+            -x :communication:sip:compileDebugKotlin \
+            -x :ui:sip:compileDebugKotlin \
+            $GRADLE_ARGS
 
       # The strongest signal available on any supported host: resource merging,
       # AAPT2, packaging and manifest verification all run here.
