@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.communicator.app
@@ -26,13 +27,13 @@ fun IncomingCallScreen(
     ) {
         Text(
             text = "Incoming Call",
-            style = MaterialTheme.typography.h4,
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface
         )
 
         Text(
             text = phoneNumber,
-            style = MaterialTheme.typography.h2,
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(vertical = 8.dp)
         )
@@ -60,7 +61,7 @@ fun IncomingCallScreen(
             // Show accepting animation or text
             Text(
                 text = "Accepting in 00:30",
-                style = MaterialTheme.typography.body2,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

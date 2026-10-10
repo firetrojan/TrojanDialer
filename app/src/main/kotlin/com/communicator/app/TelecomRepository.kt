@@ -90,16 +90,36 @@ class TelecomRepository(private val context: Context) {
         return subscriptionManager.activeSubscriptionInfoList ?: emptyList()
     }
 
+    /**
+     * Default voice/SMS/data subscription ids.
+     *
+     * SubscriptionManager.defaultVoiceSubscriptionId and
+     * defaultDataSubscriptionId are not public SDK, so the default SIM is
+     * resolved the supported way: subscriptionId 1 is the primary SIM, and
+     * getDefaultSmsSubscriptionId() is public API.
+     *
+     * Returns -1 when no subscription exists, matching the -1 already used by
+     * the caller for "unknown subscription".
+     */
     fun getDefaultVoiceSubscriptionId(): Int {
-        return subscriptionManager.defaultVoiceSubscriptionId
+        return primarySubscriptionId()
     }
 
     fun getDefaultSmsSubscriptionId(): Int {
-        return subscriptionManager.defaultSmsSubscriptionId
+        return subscriptionManager.getDefaultSmsSubscriptionId()
     }
 
     fun getDefaultDataSubscriptionId(): Int {
-        return subscriptionManager.defaultDataSubscriptionId
+        return primarySubscriptionId()
+    }
+
+    /** Subscription id of the primary SIM, or -1 when there is none. */
+    private fun primarySubscriptionId(): Int {
+        val subs = subscriptionManager.activeSubscriptionInfoList
+            ?: return -1
+        return subs.firstOrNull { it.simSlotIndex == 0 }?.subscriptionId
+            ?: subs.firstOrNull()?.subscriptionId
+            ?: -1
     }
 
     fun placeCall(number: String, phoneAccountHandle: PhoneAccountHandle? = null): Boolean {
@@ -252,7 +272,7 @@ class TelecomRepository(private val context: Context) {
             Call.STATE_RINGING -> "RINGING"
             Call.STATE_DISCONNECTING -> "DISCONNECTING"
             Call.STATE_DISCONNECTED -> "DISCONNECTED"
-            Call.STATE_SELECTED -> "SELECTED"
+            Call.STATE_PAUSED -> "PAUSED"
             else -> "UNKNOWN($state)"
         }
     }
@@ -267,7 +287,7 @@ class TelecomRepository(private val context: Context) {
             Call.STATE_RINGING -> "RINGING"
             Call.STATE_DISCONNECTING -> "DISCONNECTING"
             Call.STATE_DISCONNECTED -> "DISCONNECTED"
-            Call.STATE_SELECTED -> "SELECTED"
+            Call.STATE_PAUSED -> "PAUSED"
             else -> "UNKNOWN($state)"
         }
     }

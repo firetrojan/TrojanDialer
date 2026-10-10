@@ -5,21 +5,21 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.telecom.Call
+import android.telecom.CallAudioState
 import android.telecom.InCallService
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.mutableStateFlow
 
 class AudioRouteManager(private val context: Context) {
 
     private val audioManager = context.getSystemService(AudioManager::class.java)
 
-    private val _currentRoute = mutableStateFlow<AudioRoute>(AudioRoute.EARPIECE)
+    private val _currentRoute = MutableStateFlow<AudioRoute>(AudioRoute.EARPIECE)
     val currentRoute: StateFlow<AudioRoute> = _currentRoute
 
-    private val _availableRoutes = mutableStateFlow<List<AudioRoute>>(listOf(AudioRoute.EARPIECE))
+    private val _availableRoutes = MutableStateFlow<List<AudioRoute>>(listOf(AudioRoute.EARPIECE))
     val availableRoutes: StateFlow<List<AudioRoute>> = _availableRoutes
 
     private var currentCall: Call? = null
@@ -50,11 +50,12 @@ class AudioRouteManager(private val context: Context) {
 
     private fun mapTelecomAudioRoute(route: Int): AudioRoute {
         return when (route) {
-            android.telecom.Call.AUDIO_ROUTE_EARPIECE -> AudioRoute.EARPIECE
-            android.telecom.Call.AUDIO_ROUTE_SPEAKER -> AudioRoute.SPEAKER
-            android.telecom.Call.AUDIO_ROUTE_BLUETOOTH -> AudioRoute.BLUETOOTH
-            android.telecom.Call.AUDIO_ROUTE_WIRED_HEADSET -> AudioRoute.WIRED_HEADSET
-            android.telecom.Call.AUDIO_ROUTE_WIRED_HEADPHONES -> AudioRoute.WIRED_HEADPHONES
+            CallAudioState.ROUTE_EARPIECE -> AudioRoute.EARPIECE
+            CallAudioState.ROUTE_SPEAKER -> AudioRoute.SPEAKER
+            CallAudioState.ROUTE_BLUETOOTH -> AudioRoute.BLUETOOTH
+            CallAudioState.ROUTE_WIRED_HEADSET -> AudioRoute.WIRED_HEADSET
+            // ROUTE_WIRED_OR_EARPIECE is a combined mask; treat it as the earpiece.
+            CallAudioState.ROUTE_WIRED_OR_EARPIECE -> AudioRoute.EARPIECE
             else -> AudioRoute.EARPIECE
         }
     }
@@ -72,7 +73,7 @@ class AudioRouteManager(private val context: Context) {
                     AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> routes.add(AudioRoute.WIRED_HEADPHONES)
                     AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                     AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-                    AudioDeviceInfo.TYPE_BLUETOOTH_BLE -> routes.add(AudioRoute.BLUETOOTH)
+                    AudioDeviceInfo.TYPE_BLE_HEADSET -> routes.add(AudioRoute.BLUETOOTH)
                     else -> {}
                 }
             }
@@ -102,7 +103,7 @@ class AudioRouteManager(private val context: Context) {
                     AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> hasWired = true
                     AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                     AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-                    AudioDeviceInfo.TYPE_BLUETOOTH_BLE -> hasBluetooth = true
+                    AudioDeviceInfo.TYPE_BLE_HEADSET -> hasBluetooth = true
                 }
             }
             if (hasWired) {

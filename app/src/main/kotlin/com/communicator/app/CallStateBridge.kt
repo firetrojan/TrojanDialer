@@ -13,17 +13,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.mutableStateFlow
 import kotlinx.coroutines.launch
 
 object CallStateBridge {
-    private val _calls = mutableStateFlow<Map<String, CallInfo>>(emptyMap())
+    private val _calls = MutableStateFlow<Map<String, CallInfo>>(emptyMap())
     val calls: StateFlow<Map<String, CallInfo>> = _calls
 
-    private val _activeCallId = mutableStateFlow<String?>(null)
+    private val _activeCallId = MutableStateFlow<String?>(null)
     val activeCallId: StateFlow<String?> = _activeCallId
 
-    private val _isInCall = mutableStateFlow(false)
+    private val _isInCall = MutableStateFlow(false)
     val isInCall: StateFlow<Boolean> = _isInCall
 
     // Live Call registry - owned by InCallService, NOT persisted

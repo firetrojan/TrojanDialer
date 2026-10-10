@@ -10,13 +10,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.mutableStateFlow
 import kotlinx.coroutines.launch
 import org.pjsip.pjsua2.*
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.mutableStateFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 
@@ -31,14 +28,14 @@ class SipTransportImpl(
     private val callMap = mutableMapOf<String, Call>()
     private val accountStateMap = mutableMapOf<String, RegistrationState>()
 
-    private val _accounts = mutableStateFlow<List<SipAccount>>(emptyList())
+    private val _accounts = MutableStateFlow<List<SipAccount>>(emptyList())
     override val accounts: List<SipAccount> = _accounts.value
         get() = _accounts.value
 
-    private val _callStates = mutableStateFlow<Map<String, SipCallState>>(emptyMap())
+    private val _callStates = MutableStateFlow<Map<String, SipCallState>>(emptyMap())
     override fun observeCallState(): Flow<SipCallState> = _callStates.asFlow()
 
-    private val _messages = mutableStateFlow<List<SipMessage>>(emptyList())
+    private val _messages = MutableStateFlow<List<SipMessage>>(emptyList())
     override fun observeMessages(): Flow<SipMessage> = _messages.asFlow()
 
     init {
@@ -118,10 +115,10 @@ class SipTransportImpl(
     override val accounts: List<SipAccount>
         get() = _accounts.value
 
-    private val _accounts = mutableStateFlow<List<SipAccount>>(emptyList())
+    private val _accounts = MutableStateFlow<List<SipAccount>>(emptyList())
 
-    private val _registrationStates = mutableStateFlow<Map<String, RegistrationState>>(emptyMap())
-    private val _callStates = mutableStateFlow<Map<String, SipCallState>>(emptyMap())
+    private val _registrationStates = MutableStateFlow<Map<String, RegistrationState>>(emptyMap())
+    private val _callStates = MutableStateFlow<Map<String, SipCallState>>(emptyMap())
 
     override fun observeCallState(): Flow<SipCallState> = _callStates.asFlow().flatMapLatest { states ->
         kotlinx.coroutines.flow.flow { states.values.toCollection() }
@@ -129,7 +126,7 @@ class SipTransportImpl(
 
     override fun observeMessages(): Flow<SipMessage> = _messages.asFlow()
 
-    private val _messages = mutableStateFlow<List<SipMessage>>(emptyList())
+    private val _messages = MutableStateFlow<List<SipMessage>>(emptyList())
 
     override suspend fun registerAccount(account: SipAccount): Result<Unit> {
         return try {

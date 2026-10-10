@@ -9,7 +9,6 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.mutableStateFlow
 
 class PhoneAccountDiagnostics(private val context: Context) {
 
@@ -17,10 +16,10 @@ class PhoneAccountDiagnostics(private val context: Context) {
     private val subscriptionManager = context.getSystemService(SubscriptionManager::class.java)
     private val telephonyManager = context.getSystemService(TelephonyManager::class.java)
 
-    private val _phoneAccounts = mutableStateFlow<List<PhoneAccountInfo>>(emptyList())
+    private val _phoneAccounts = MutableStateFlow<List<PhoneAccountInfo>>(emptyList())
     val phoneAccounts: StateFlow<List<PhoneAccountInfo>> = _phoneAccounts
 
-    private val _subscriptions = mutableStateFlow<List<SubscriptionInfo>>(emptyList())
+    private val _subscriptions = MutableStateFlow<List<SubscriptionInfo>>(emptyList())
     val subscriptions: StateFlow<List<SubscriptionInfo>> = _subscriptions
 
     init {

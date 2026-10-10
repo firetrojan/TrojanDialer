@@ -3,6 +3,7 @@ package com.communicator.ui.recents
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.communicator.app
@@ -56,15 +57,15 @@ fun RecentsScreen(
                             Column(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Start
+                                horizontalAlignment = Alignment.Start
                             ) {
                                 Text(
                                     text = call.name ?: call.number ?: "Unknown",
-                                    style = MaterialTheme.typography.body1
+                                    style = MaterialTheme.typography.bodyLarge
                                 )
                                 Text(
                                     text = call.formattedDateTime,
-                                    style = MaterialTheme.typography.caption
+                                    style = MaterialTheme.typography.bodySmall
                                 )
                             }
                         }

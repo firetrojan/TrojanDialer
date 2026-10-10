@@ -20,14 +20,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.OutlinedButton
+import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -189,8 +193,8 @@ fun DialerScreen(
                                 fontSize = 16.sp
                             )
                             if (selectedAccount == account) {
-                                androidx.compose.material.Icon(
-                                    imageVector = androidx.compose.material.Icons.Default.Check,
+                                Icon(
+                                    imageVector = Icons.Default.Check,
                                     contentDescription = "Selected"
                                 )
                             }

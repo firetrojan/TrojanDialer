@@ -23,7 +23,7 @@ class CallHistoryRepository(private val context: Context) {
                 CallLog.Calls.DURATION,
                 CallLog.Calls.TYPE,
                 CallLog.Calls.PHONE_ACCOUNT_ID,
-                CallLog.Calls.SUB_ID
+                COLUMN_SUBSCRIPTION_ID
             )
 
             val sortOrder = "${CallLog.Calls.DATE} DESC LIMIT $limit"
@@ -45,7 +45,7 @@ class CallHistoryRepository(private val context: Context) {
                 val durationIndex = c.getColumnIndex(CallLog.Calls.DURATION)
                 val typeIndex = c.getColumnIndex(CallLog.Calls.TYPE)
                 val accountIndex = c.getColumnIndex(CallLog.Calls.PHONE_ACCOUNT_ID)
-                val subIdIndex = c.getColumnIndex(CallLog.Calls.SUB_ID)
+                val subIdIndex = c.getColumnIndex(COLUMN_SUBSCRIPTION_ID)
 
                 while (c.moveToNext()) {
                     val callType = when (c.getInt(typeIndex)) {
@@ -88,6 +88,16 @@ class CallHistoryRepository(private val context: Context) {
         ANSWERED_EXTERNALLY,
         UNKNOWN
     }
+
+    /**
+     * Call log column holding the subscription the call was placed on.
+     *
+     * The column is real but CallLog.Calls does not expose it as a constant in
+     * the public SDK, so it is referenced by name. Reading it is already
+     * guarded: getColumnIndex returns -1 on devices/carriers that do not
+     * provide it, and the caller substitutes -1 rather than crashing.
+     */
+    private const val COLUMN_SUBSCRIPTION_ID = "sub_id"
 
     data class CallRecord(
         val id: Long,

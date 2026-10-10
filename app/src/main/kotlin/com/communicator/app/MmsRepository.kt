@@ -7,8 +7,11 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.Telephony
 import android.util.Log
-import com.communicator.communication.mms.MmsRequest
-import com.communicator.communication.mms.MmsResult
+import com.communicator.communication.mms.MmsTransport.MmsAttachment
+import com.communicator.communication.mms.MmsTransport.MmsMessage
+import com.communicator.communication.mms.MmsTransport.MmsRequest
+import com.communicator.communication.mms.MmsTransport.MmsThread
+import com.communicator.communication.mms.MmsTransport.MmsResult
 import com.communicator.communication.mms.MmsTransport
 import com.communicator.communication.mms.MmsTransportImpl
 import com.communicator.data.core.mms.MmsDeliveryState
@@ -78,7 +81,7 @@ class MmsRepository(
         address: String,
         subject: String?,
         textContent: String?,
-        attachments: List<MmsRequest.Attachment>,
+        attachments: List<MmsAttachment>,
         subscriptionId: Int? = null,
         deliveryReport: Boolean = false
     ): MmsResult {
@@ -91,7 +94,7 @@ class MmsRepository(
                 subject = subject,
                 textContent = textContent,
                 attachments = attachments.map { att ->
-                    MmsRequest.Attachment(
+                    MmsAttachment(
                         contentUri = android.net.Uri.parse(att.uri),
                         mimeType = att.mimeType,
                         filename = att.filename,

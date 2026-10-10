@@ -123,6 +123,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    // Provides collectAsStateWithLifecycle, used by MainActivity.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.room:room-ktx:2.7.2")
     implementation("androidx.room:room-runtime:2.7.2")
@@ -132,6 +134,9 @@ dependencies {
     implementation("androidx.biometric:biometric:1.2.0-alpha04")
     implementation("androidx.compose.ui:ui:1.6.5")
     implementation("androidx.compose.material3:material3:1.3.0")
+    // Icons.Default.Call / CallMissed / Check live in the icons artifact, which
+    // material3 does not pull in on its own.
+    implementation("androidx.compose.material:material-icons-extended:1.6.5")
     implementation("androidx.compose.runtime:runtime:1.6.5")
     implementation("androidx.compose.foundation:foundation:1.6.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")

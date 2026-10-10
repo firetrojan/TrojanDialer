@@ -1,8 +1,6 @@
 package com.communicator.app
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.keyboardActions.KeyboardActions
-import androidx.compose.foundation.text.keyboardKey.numericKeyboardKey
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -76,14 +74,14 @@ fun DialScreen(
                     onClick = { onCallInitiate(number) },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Call", style = MaterialTheme.typography.h6)
+                    Text("Call", style = MaterialTheme.typography.titleLarge)
                 }
 
                 MaterialButtonOutlinedText(
                     onClick = { number = "" },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Clear", style = MaterialTheme.typography.h6)
+                    Text("Clear", style = MaterialTheme.typography.titleLarge)
                 }
             }
         }

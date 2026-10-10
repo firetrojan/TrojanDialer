@@ -5,9 +5,9 @@ import android.os.Build
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import com.communicator.communication.sms.SmsMmsTransport
-import com.communicator.communication.sms.SmsRequest
+import com.communicator.communication.sms.SmsMmsTransport.SmsRequest
 import com.communicator.communication.sms.SmsTransportImpl
-import com.communicator.communication.sms.SmsMmsResult
+import com.communicator.communication.sms.SmsMmsTransport.SmsMmsResult
 import com.communicator.data.core.model.DeliveryState
 import com.communicator.data.core.sms.ConversationEntity
 import com.communicator.data.core.sms.ConversationDao
