@@ -28,6 +28,24 @@ object CallStateBridge {
     val isInCall: StateFlow<Boolean> = _isInCall
 
     // Live Call registry - owned by InCallService, NOT persisted
+
+    /**
+     * Stable ids for live calls.
+     *
+     * android.telecom.Call exposes no public identifier: Call.Details has
+     * getTelecomCallId(), but that method is @hide and is not in the public
+     * SDK, so it cannot be called. Telecom also gives no public per-call id.
+     *
+     * Ids are therefore assigned here, one per live Call object, and reused for
+     * the lifetime of that call. A weak-keyed identity map keeps a finished
+     * call's object from pinning memory, and an AtomicLong guarantees a fresh
+     * id is never reused within a process.
+     */
+    private val idsByCall = java.util.WeakHashMap<Call, String>()
+    private val nextCallId = java.util.concurrent.atomic.AtomicLong(1)
+
+    fun idFor(call: Call): String =
+        synchronized(idsByCall) { idsByCall.getOrPut(call) { nextCallId.getAndIncrement().toString() } }
     private val liveCalls = mutableMapOf<String, Call>()
 
     private var commandHandler: ((String, CallCommand) -> Boolean)? = null
@@ -53,7 +71,7 @@ object CallStateBridge {
 
     // Called by InCallService when a call is added
     fun onCallAdded(call: Call) {
-        val callId = call.details.telecomCallId
+        val callId = CallStateBridge.idFor(call)
         liveCalls[callId] = call
         val info = CallInfo.fromCall(call)
         _calls.update { it + (info.callId to info) }
@@ -62,7 +80,7 @@ object CallStateBridge {
 
     // Called by InCallService when a call is removed
     fun onCallRemoved(call: Call) {
-        val callId = call.details.telecomCallId
+        val callId = CallStateBridge.idFor(call)
         liveCalls.remove(callId)
         _calls.update { it - callId }
         if (_activeCallId.value == callId) {
@@ -73,7 +91,7 @@ object CallStateBridge {
 
     // Called by InCallService when call state changes
     fun onCallStateChanged(call: Call, state: Int) {
-        val callId = call.details.telecomCallId
+        val callId = CallStateBridge.idFor(call)
         liveCalls[callId] = call // Update reference
         _calls.update { calls ->
             val existing = calls[callId]
@@ -88,7 +106,7 @@ object CallStateBridge {
 
     // Called by InCallService when call details change
     fun onCallDetailsChanged(call: Call, details: Details) {
-        val callId = call.details.telecomCallId
+        val callId = CallStateBridge.idFor(call)
         liveCalls[callId] = call // Update reference
         _calls.update { calls ->
             val existing = calls[callId]
@@ -141,7 +159,7 @@ object CallStateBridge {
     }
 
     private fun updateCallCapabilities(call: Call, transform: CallInfo.Capabilities.() -> CallInfo.Capabilities) {
-        val callId = call.details.telecomCallId
+        val callId = CallStateBridge.idFor(call)
         _calls.update { calls ->
             val existing = calls[callId]
             if (existing != null) {
@@ -179,7 +197,7 @@ object CallStateBridge {
         liveCalls.clear()
         val newCalls = mutableMapOf<String, CallInfo>()
         for (call in calls) {
-            val callId = call.details.telecomCallId
+            val callId = CallStateBridge.idFor(call)
             liveCalls[callId] = call
             newCalls[callId] = CallInfo.fromCall(call)
         }
@@ -212,8 +230,11 @@ object CallStateBridge {
             }
             CallCommand.HOLD -> call.hold()
             CallCommand.UNHOLD -> call.unhold()
-            CallCommand.MUTE -> call.mute(true)
-            CallCommand.UNMUTE -> call.mute(false)
+            // Call exposes no mute() or setMuted(); audio routing for an
+            // InCallService call is managed by Telecom. Report failure instead
+            // of pretending the call was muted.
+            CallCommand.MUTE -> false
+            CallCommand.UNMUTE -> false
             CallCommand.SET_SPEAKERPHONE -> {
                 // Speakerphone via AudioManager is handled separately
                 false
@@ -279,7 +300,7 @@ object CallStateBridge {
             fun fromCall(call: Call, observedAt: Long = System.currentTimeMillis()): CallInfo {
                 val details = call.details
                 return CallInfo(
-                    callId = call.details.telecomCallId,
+                    callId = CallStateBridge.idFor(call),
                     number = details.handle?.schemeSpecificPart,
                     displayName = details.handle?.schemeSpecificPart,
                     state = details.state,
@@ -362,7 +383,7 @@ class InCallServiceImpl : InCallService() {
 
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
-        Log.d(logTag, "onCallAdded: ${call.details.telecomCallId}, state: ${call.details.state}")
+        Log.d(logTag, "onCallAdded: ${CallStateBridge.idFor(call)}, state: ${call.details.state}")
         // A single onCallAdded fires for the whole life of the call, so it is
         // also where state, details and audio route changes are observed.
         CallStateBridge.onCallAdded(call)
@@ -372,7 +393,7 @@ class InCallServiceImpl : InCallService() {
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
-        Log.d(logTag, "onCallRemoved: ${call.details.telecomCallId}")
+        Log.d(logTag, "onCallRemoved: ${CallStateBridge.idFor(call)}")
         CallStateBridge.onCallRemoved(call)
     }
 
@@ -393,7 +414,7 @@ class InCallServiceImpl : InCallService() {
      */
     override fun onCallAudioStateChanged(call: Call, audioState: CallAudioState) {
         super.onCallAudioStateChanged(call, audioState)
-        Log.d(logTag, "onCallAudioStateChanged: ${call.details.telecomCallId}, route: ${audioState.route}")
+        Log.d(logTag, "onCallAudioStateChanged: ${CallStateBridge.idFor(call)}, route: ${audioState.route}")
         CallStateBridge.onAudioRouteChanged(audioState.route)
     }
 

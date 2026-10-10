@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Icons
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -87,7 +87,7 @@ fun RecentsScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        imageVector = if (missed) Icons.Default.CallMissed else Icons.Default.Call,
+                        imageVector = if (missed) Icons.Filled.CallMissed else Icons.Filled.Call,
                         contentDescription = null
                     )
                     Column(modifier = Modifier.weight(1f)) {

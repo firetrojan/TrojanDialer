@@ -40,10 +40,12 @@ class AudioRouteManager(private val context: Context) {
     fun refreshFromTelecom(call: Call?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             call?.let { c ->
-                // The audio route is exposed by CallAudioState on Call, not by
-                // Call.Details.
-                val route = c.audioState?.route ?: return@let
-                _currentRoute.value = mapTelecomAudioRoute(route)
+                // Call exposes no audioState getter and Details exposes no
+                // current route either - the supported route mask is not the
+                // active route. The active route is only observable through
+                // InCallService.onCallAudioStateChanged, so fall back to the
+                // AudioManager enumeration below instead of guessing.
+                refreshFromLegacy()
             }
         } else {
             refreshFromLegacy()

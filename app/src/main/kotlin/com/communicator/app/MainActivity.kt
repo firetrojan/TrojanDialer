@@ -29,12 +29,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Icons
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.OutlinedButton
 import androidx.activity.compose.setContent
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -143,7 +144,7 @@ fun DialerScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = androidx.compose.material3.CardDefaults.cardColors(
-                containerColor = if (isDefaultDialer) androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                containerColor = if (isDefaultDialer.value) androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
                 else androidx.compose.material3.MaterialTheme.colorScheme.errorContainer
             )
         ) {
@@ -165,13 +166,13 @@ fun DialerScreen(
         }
 
         // SIM/Account selector
-        if (callCapableAccounts.size > 1) {
+        if (callCapableAccounts.value.size > 1) {
             Text("Select SIM/Account:", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                callCapableAccounts.forEach { account ->
+                callCapableAccounts.value.forEach { account ->
                     val subscription = activeSubscriptions.find { sub ->
                         val accountSubId = telecomRepository.getPhoneAccountHandleForSubscription(sub.subscriptionId)
                         accountSubId == account
@@ -197,7 +198,7 @@ fun DialerScreen(
                             )
                             if (selectedAccount == account) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = Icons.Filled.Check,
                                     contentDescription = "Selected"
                                 )
                             }
@@ -279,13 +280,13 @@ fun DialerScreen(
         }
 
         // Active calls section
-        if (activeCalls.isNotEmpty()) {
+        if (activeCalls.value.isNotEmpty()) {
             Text("Active Calls:", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                activeCalls.forEach { (callId, callState) ->
+                activeCalls.value.forEach { (callId, callState) ->
                     val callInfo = telecomRepository.getCallInfo(callId)
                     val canHold = callInfo?.canHold ?: false
                     val canMerge = callInfo?.canMerge ?: false
