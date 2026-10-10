@@ -135,27 +135,27 @@ object CallStateBridge {
 
     // Called by InCallService for capability changes
     fun onCanPutOnHoldChanged(call: Call, canPutOnHold: Boolean) {
-        updateCallCapabilities(call, { it.copy(canHold = canPutOnHold) })
+        updateCallCapabilities(call, { copy(canHold = canPutOnHold) })
     }
 
     fun onCanMergeChanged(call: Call, canMerge: Boolean) {
-        updateCallCapabilities(call, { it.copy(canMerge = canMerge) })
+        updateCallCapabilities(call, { copy(canMerge = canMerge) })
     }
 
     fun onCanSwapChanged(call: Call, canSwap: Boolean) {
-        updateCallCapabilities(call, { it.copy(canSwap = canSwap) })
+        updateCallCapabilities(call, { copy(canSwap = canSwap) })
     }
 
     fun onCanConferenceChanged(call: Call, canConference: Boolean) {
-        updateCallCapabilities(call, { it.copy(canConference = canConference) })
+        updateCallCapabilities(call, { copy(canConference = canConference) })
     }
 
     fun onCanDisconnectChanged(call: Call, canDisconnect: Boolean) {
-        updateCallCapabilities(call, { it.copy(canDisconnect = canDisconnect) })
+        updateCallCapabilities(call, { copy(canDisconnect = canDisconnect) })
     }
 
     fun onCanAddCallChanged(call: Call, canAddCall: Boolean) {
-        updateCallCapabilities(call, { it.copy(canAddCall = canAddCall) })
+        updateCallCapabilities(call, { copy(canAddCall = canAddCall) })
     }
 
     private fun updateCallCapabilities(call: Call, transform: CallInfo.Capabilities.() -> CallInfo.Capabilities) {
