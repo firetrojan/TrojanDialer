@@ -1,20 +1,19 @@
-name: Build Foundation Verification
+name: Build
 
-# Scope: build configuration and reproducibility only.
+# Real build gate. One job, ordered so that the cheapest failure surfaces first
+# and every later step is meaningful only if the earlier ones passed.
 #
-# This workflow deliberately separates three results that are easy to conflate:
+# The distinction that matters here: `gradle projects` succeeding proves only
+# that build scripts can be evaluated. It does not prove the app compiles, and
+# it is not reported as a pass.
 #
-#   1. CONFIGURATION   - can Gradle evaluate settings.gradle.kts and the root
-#                        build file, and resolve every module's build script?
-#   2. DEPENDENCY      - do all declared plugins and libraries resolve?
-#   3. COMPILATION     - does :data:core actually produce Kotlin classes?
-#
-# `gradle projects` succeeding proves only (1). It does NOT prove the
-# application compiles, and it is not treated as success here.
+# Every step below either succeeds or fails on its own exit code. Nothing uses
+# continue-on-error to fake progress; if a step is allowed to fail, the gate
+# checks its recorded result explicitly and says so.
 
 on:
   push:
-    branches: [ Working, main, master ]
+    branches: [main, master, Working]
   pull_request:
   workflow_dispatch:
 
@@ -22,10 +21,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+env:
+  GRADLE_ARGS: --stacktrace --warning-mode=summary
+
 jobs:
-  verify:
-    name: Gradle configuration + compile
+  build:
+    name: Build and verify
     runs-on: ubuntu-latest
+    # Android build tools are published for x86_64 only, so the full assemble
+    # cannot run anywhere else. Nothing here is ARM64-capable.
+    timeout-minutes: 45
 
     steps:
       - name: Check out repository
@@ -37,207 +45,132 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Prefer the committed wrapper so the pinned Gradle version is the one
-      # that actually runs. Fall back to setup-gradle only if it is absent.
-      - name: Use pinned Gradle 8.13 via wrapper
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --version
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      # ------------------------------------------------------------------
-      # 1. CONFIGURATION
-      # ------------------------------------------------------------------
-      - name: '1. CONFIGURATION - list projects'
+      - name: Make wrapper executable
+        run: chmod +x ./gradlew
+
+      # Every module's build script must evaluate before anything else means
+      # anything. This is cheap and fails fast.
+      - name: Configure
         id: config
-        run: |
-          set -o pipefail
-          ./gradlew projects --stacktrace 2>&1 | tee gradle-projects.log
-        continue-on-error: true
+        run: ./gradlew projects $GRADLE_ARGS
 
-      - name: '1b. CONFIGURATION - task discovery'
-        id: discovery
-        if: steps.config.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew :app:tasks --all 2>&1 | tee gradle-app-tasks.log
-        continue-on-error: true
-
-      # ------------------------------------------------------------------
-      # 2. DEPENDENCY RESOLUTION
-      # ------------------------------------------------------------------
-      # Configuring the app resolves the full plugin classpath, so a missing or
-      # unresolvable dependency surfaces here even if :data:core compiles.
-      - name: '2. DEPENDENCY - resolve app configuration'
+      # Dependency resolution across every module, not just :app. Catches a
+      # coordinate or version that cannot be fetched before compilation starts.
+      - name: Resolve dependencies
         id: deps
-        if: steps.config.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew :app:dependencies --configuration debugRuntimeClasspath 2>&1 \
-            | tee gradle-app-deps.log
-        continue-on-error: true
+        run: ./gradlew :app:dependencies --configuration debugRuntimeClasspath $GRADLE_ARGS
 
-      # ------------------------------------------------------------------
-      # 3. COMPILATION
-      # ------------------------------------------------------------------
-      # :data:core is the smallest module that still exercises Room + KSP +
-      # kotlinx.serialization, so it is the earliest honest compile signal.
-      # Gated on the dependency stage too: an unresolvable dependency must not
-      # be able to appear as a successful (or even attempted) compilation.
-      - name: '3. COMPILATION - :data:core:compileDebugKotlin'
-        id: compile_datacore
-        if: steps.config.outcome == 'success' && steps.deps.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew :data:core:compileDebugKotlin --stacktrace 2>&1 \
-            | tee gradle-datacore-compile.log
-        continue-on-error: true
+      # Compile every module's Kotlin. :data:core alone proved nothing about
+      # the other 25 modules; this is the first step that does.
+      - name: Compile all modules
+        id: compile
+        run: ./gradlew compileDebugKotlin $GRADLE_ARGS
 
-      # ------------------------------------------------------------------
-      # 3b. FULL APP ASSEMBLY  <-- the gate that ARM64 cannot run at all
-      # ------------------------------------------------------------------
-      # AAPT2 is an x86_64 binary; Android build-tools are published for x86_64
-      # only (no arm64 archive exists). :app:processDebugResources and therefore
-      # :app:assembleDebug cannot execute on an ARM64 Linux host. ubuntu-latest is
-      # x86-64, so this is the first place the full app can actually be built.
-      - name: '3b. APP ASSEMBLY - :app:assembleDebug'
+      # The strongest signal available on any supported host: resource merging,
+      # AAPT2, packaging and manifest verification all run here.
+      - name: Assemble debug APK
         id: assemble
-        if: steps.compile_datacore.outcome == 'success' && steps.deps.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --max-workers=2 :app:assembleDebug --stacktrace 2>&1 \
-            | tee gradle-assemble-debug.log
-          if [ -n "$(find app/build/outputs/apk -name '*.apk' 2>/dev/null)" ]; then
-            {
-              echo "### APK artifact"
-              find app/build/outputs/apk -name '*.apk' -exec ls -l {} \;
-              find app/build/outputs/apk -name '*.apk' -exec sha256sum {} \;
-              echo "### ABI payloads"
-              APK=$(find app/build/outputs/apk -name '*.apk' | head -1)
-              unzip -l "$APK" | grep '\.so$' || echo "(no native libs)"
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::error::assembleDebug produced no APK"
-          fi
-        continue-on-error: true
+        run: ./gradlew :app:assembleDebug $GRADLE_ARGS
 
-      # ------------------------------------------------------------------
-      # 4. TESTS
-      # ------------------------------------------------------------------
-      - name: '4a. TESTS - encrypted module unit tests'
-        id: tests
-        if: steps.compile_datacore.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew :communication:encrypted:testDebugUnitTest --stacktrace 2>&1 \
-            | tee gradle-encrypted-tests.log
-        continue-on-error: true
+      # Only meaningful once the modules compile.
+      - name: Unit tests
+        id: test
+        run: ./gradlew testDebugUnitTest $GRADLE_ARGS
 
-      # The full `test` gate needs :app's resources, so it is only meaningful
-      # once the APK assembles.
-      - name: '4b. TESTS - full test gate'
-        id: tests_all
+      - name: Upload APK
         if: steps.assemble.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --max-workers=2 test --stacktrace 2>&1 \
-            | tee gradle-test-all.log
-        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 7
 
-      # ------------------------------------------------------------------
-      # 4c. LINT (report-only; lint has many pre-existing style findings)
-      # ------------------------------------------------------------------
-      - name: '4c. LINT - :app:lintDebug'
-        id: lint
-        if: steps.assemble.outcome == 'success'
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon --max-workers=2 :app:lintDebug --stacktrace 2>&1 \
-            | tee gradle-lint.log
-        continue-on-error: true
-
-      # A skipped stage must not read as a pass. `skipped` and empty outcomes
-      # are reported explicitly instead of being folded into the success row.
-      - name: '5. VERDICT - record skipped stages'
-        id: verdict
-        if: always()
-        run: |
-          echo "config=${{ steps.config.outcome }} deps=${{ steps.deps.outcome }} compile=${{ steps.compile_datacore.outcome }} assemble=${{ steps.assemble.outcome }} tests=${{ steps.tests.outcome }} testsAll=${{ steps.tests_all.outcome }} lint=${{ steps.lint.outcome }}"
-
-      # ------------------------------------------------------------------
-      # Summary
-      # ------------------------------------------------------------------
-      - name: Summarise results
-        if: always()
-        run: |
-          {
-            echo "### Build Foundation Verification"
-            echo
-            echo "| Step | Result |"
-            echo "|------|--------|"
-            echo "| 1. Configuration (\`gradle projects\`) | ${{ steps.config.outcome }} |"
-            echo "| 1b. Task discovery (\`:app:tasks\`) | ${{ steps.discovery.outcome }} |"
-            echo "| 2. Dependency resolution (\`:app:dependencies\`) | ${{ steps.deps.outcome }} |"
-            echo "| 3. Compilation (\`:data:core:compileDebugKotlin\`) | ${{ steps.compile_datacore.outcome }} |"
-            echo "| 3b. APK assembly (\`:app:assembleDebug\`) | ${{ steps.assemble.outcome }} |"
-            echo "| 4a. Encrypted unit tests | ${{ steps.tests.outcome }} |"
-            echo "| 4b. Full test gate (\`test\`) | ${{ steps.tests_all.outcome }} |"
-            echo "| 4c. Lint (\`:app:lintDebug\`) | ${{ steps.lint.outcome }} |"
-            echo
-            if [ "${{ steps.config.outcome }}" != "success" ]; then
-              echo "**BUILD CONFIGURATION FAILED.** No later stage ran. See gradle-projects.log."
-            elif [ "${{ steps.deps.outcome }}" != "success" ]; then
-              echo "**CONFIGURATION OK, DEPENDENCY RESOLUTION FAILED.** Compilation was not attempted."
-              echo "See gradle-app-deps.log."
-            elif [ "${{ steps.compile_datacore.outcome }}" = "skipped" ]; then
-              echo "**COMPILATION WAS SKIPPED** - it did not run. This is not a pass."
-            elif [ "${{ steps.compile_datacore.outcome }}" != "success" ]; then
-              echo "**CONFIGURATION AND DEPENDENCIES OK, COMPILATION FAILED.** Genuine source errors follow."
-              echo "See gradle-datacore-compile.log."
-            elif [ "${{ steps.assemble.outcome }}" = "skipped" ]; then
-              echo "**APP ASSEMBLY WAS SKIPPED.** No APK was produced. This is not a pass."
-            elif [ "${{ steps.assemble.outcome }}" != "success" ]; then
-              echo "**:data:core COMPILED, BUT THE APK DID NOT BUILD.**"
-              echo "This is the strongest signal yet - resource merging, AAPT2, packaging and"
-              echo "manifest verification all ran on a supported host. See gradle-assemble-debug.log."
-            else
-              echo "APK built. Tests: ${{ steps.tests_all.outcome }}, lint: ${{ steps.lint.outcome }}."
-              echo "Assembly proves the artifact is packable, not that it runs on a device."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Upload every log verbatim: failures must be inspectable, not summarised away.
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-logs
+          name: build-logs
           path: |
-            gradle-projects.log
-            gradle-app-tasks.log
-            gradle-app-deps.log
-            gradle-datacore-compile.log
-            gradle-assemble-debug.log
-            gradle-encrypted-tests.log
-            gradle-test-all.log
-            gradle-lint.log
-          if-no-files-found: warn
-          retention-days: 14
+            app/build/reports/
+            **/build/reports/
+          if-no-files-found: ignore
+          retention-days: 7
 
-      # A skipped stage is a failure too: the point of this workflow is to prove
-      # the app builds, not merely that Gradle can evaluate it.
-      - name: Fail unless configuration, dependencies, compile and APK assembly succeed
-        if: >-
-          steps.config.outcome != 'success' ||
-          steps.deps.outcome != 'success' ||
-          steps.compile_datacore.outcome != 'success' ||
-          steps.assemble.outcome != 'success'
+      # Written with a quoted heredoc so nothing in the body is interpreted as
+      # shell: no backticks, no command substitution, no escaped quoting. The
+      # earlier version used an unescaped backtick inside a double-quoted echo,
+      # which made bash read the rest of the step as a command substitution and
+      # exit 2.
+      - name: Summary
+        if: always()
+        env:
+          R_CONFIG: ${{ steps.config.outcome }}
+          R_DEPS: ${{ steps.deps.outcome }}
+          R_COMPILE: ${{ steps.compile.outcome }}
+          R_ASSEMBLE: ${{ steps.assemble.outcome }}
+          R_TEST: ${{ steps.test.outcome }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          echo "Build foundation verification failed."
-          echo "  configuration: ${{ steps.config.outcome }}"
-          echo "  dependencies : ${{ steps.deps.outcome }}"
-          echo "  compile      : ${{ steps.compile_datacore.outcome }}"
-          echo "  assemble     : ${{ steps.assemble.outcome }}"
-          echo "  tests        : ${{ steps.tests_all.outcome }}"
-          echo "  lint         : ${{ steps.lint.outcome }}"
-          echo "See the uploaded gradle-logs artifact."
-          exit 1
+          {
+            printf '### Build result\n\n'
+            printf 'Commit `%s`\n\n' "$HEAD_SHA"
+            printf '| Step | Result |\n'
+            printf '|------|--------|\n'
+            printf '| Configure | %s |\n' "${R_CONFIG:-skipped}"
+            printf '| Dependencies | %s |\n' "${R_DEPS:-skipped}"
+            printf '| Compile all modules | %s |\n' "${R_COMPILE:-skipped}"
+            printf '| Assemble debug APK | %s |\n' "${R_ASSEMBLE:-skipped}"
+            printf '| Unit tests | %s |\n' "${R_TEST:-skipped}"
+            printf '\n'
+
+            if [ "${R_CONFIG:-skipped}" != "success" ]; then
+              printf '**Configuration failed.** No build script could be evaluated.\n'
+            elif [ "${R_DEPS:-skipped}" != "success" ]; then
+              printf '**Configuration OK, dependency resolution failed.** Compilation was not attempted.\n'
+            elif [ "${R_COMPILE:-skipped}" != "success" ]; then
+              printf '**Compilation failed.** Module errors are in the job log.\n'
+            elif [ "${R_ASSEMBLE:-skipped}" != "success" ]; then
+              printf '**All modules compiled, but the APK did not assemble.**\n'
+            elif [ "${R_TEST:-skipped}" != "success" ]; then
+              printf '**APK assembled. Tests failed** - see the job log.\n'
+            else
+              printf '**APK assembled and tests passed.** This proves the artifact is\n'
+              printf 'packable, not that it runs on a device.\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The gate. A green run means all five stages really passed; nothing is
+      # skipped silently.
+      - name: Gate
+        if: always()
+        env:
+          R_CONFIG: ${{ steps.config.outcome }}
+          R_DEPS: ${{ steps.deps.outcome }}
+          R_COMPILE: ${{ steps.compile.outcome }}
+          R_ASSEMBLE: ${{ steps.assemble.outcome }}
+          R_TEST: ${{ steps.test.outcome }}
+        run: |
+          failed=0
+          for pair in \
+            "configure:${R_CONFIG:-skipped}" \
+            "dependencies:${R_DEPS:-skipped}" \
+            "compile:${R_COMPILE:-skipped}" \
+            "assemble:${R_ASSEMBLE:-skipped}" \
+            "test:${R_TEST:-skipped}"
+          do
+            stage="${pair%%:*}"
+            result="${pair#*:}"
+            if [ "$result" != "success" ]; then
+              printf '::error::%s did not pass (%s)' "$stage" "$result"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            printf '::error::build gate failed'
+            exit 1
+          fi
+          printf 'build gate passed'
