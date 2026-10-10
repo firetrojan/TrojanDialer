@@ -1,11 +1,21 @@
 <resources>
-    <style name="Theme.Communicator" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
+    <!--
+        Platform theme only. The app's visible theming is Compose Material3,
+        applied in setContent { Theme { ... } } (see ui/core Theme.kt), which
+        does not read XML styles.
+
+        This parent is deliberately Theme.AppCompat, NOT Theme.Material3.
+        Theme.Material3.* and the colorPrimary/colorSecondary attribute set
+        are supplied by com.google.android.material:material, which this
+        module does not depend on. Compose Material3 (androidx.compose.
+        material3) provides a Kotlin API only and contributes no XML
+        resources, so referencing the Material3 XML theme here failed
+        resource linking with "style/Theme.Material3.DayNight.NoActionBar not
+        found" and "attr/colorPrimaryVariant not found".
+
+        AppCompat is already a direct dependency of :app.
+    -->
+    <style name="Theme.Communicator" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
