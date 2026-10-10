@@ -36,7 +36,7 @@ class PhoneAccountDiagnostics(private val context: Context) {
         val accounts = handles.mapNotNull { handle ->
             val account = telecomManager.getPhoneAccount(handle)
             account?.let {
-                val subscriptionId = subscriptionIdFromExtras(it.handle)
+                val subscriptionId = subscriptionIdFromExtras(handle)
                 val hasSubscriptionId = subscriptionId >= 0
                 
                 PhoneAccountInfo(
@@ -49,7 +49,7 @@ class PhoneAccountDiagnostics(private val context: Context) {
                     hasSubscriptionId = hasSubscriptionId,
                     supportsVideo = it.hasCapabilities(PhoneAccount.CAPABILITY_VIDEO_CALLING),
                     carrierName = activeSubscriptions()
-                        .firstOrNull { sub -> sub.subscriptionId == subscriptionIdFromExtras(it.handle) }
+                        .firstOrNull { sub -> sub.subscriptionId == subscriptionId }
                         ?.carrierName?.toString()
                 )
             }

@@ -4,6 +4,8 @@ import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Context
 import android.database.Cursor
+import android.content.Intent
+import android.os.Build
 import android.net.Uri
 import android.provider.Telephony
 import android.util.Log
@@ -125,10 +127,6 @@ class MmsRepository(
     suspend fun getMessages(threadId: String): Flow<List<MmsMessage>> {
         val transport = getActiveTransport()
         return transport?.getMessages(threadId) ?: kotlinx.coroutines.flow.flow { }
-    }
-
-    fun getActiveTransport(): MmsTransportImpl? {
-        return activeSubscriptionId.value?.let { transports[it] }
     }
 
     suspend fun observeMms(): Flow<MmsMessage> {

@@ -53,7 +53,7 @@ object CallStateBridge {
 
     // Called by InCallService when a call is added
     fun onCallAdded(call: Call) {
-        val callId = call.id
+        val callId = call.details.telecomCallId
         liveCalls[callId] = call
         val info = CallInfo.fromCall(call)
         _calls.update { it + (info.callId to info) }
@@ -62,7 +62,7 @@ object CallStateBridge {
 
     // Called by InCallService when a call is removed
     fun onCallRemoved(call: Call) {
-        val callId = call.id
+        val callId = call.details.telecomCallId
         liveCalls.remove(callId)
         _calls.update { it - callId }
         if (_activeCallId.value == callId) {
@@ -73,7 +73,7 @@ object CallStateBridge {
 
     // Called by InCallService when call state changes
     fun onCallStateChanged(call: Call, state: Int) {
-        val callId = call.id
+        val callId = call.details.telecomCallId
         liveCalls[callId] = call // Update reference
         _calls.update { calls ->
             val existing = calls[callId]
@@ -88,7 +88,7 @@ object CallStateBridge {
 
     // Called by InCallService when call details change
     fun onCallDetailsChanged(call: Call, details: Details) {
-        val callId = call.id
+        val callId = call.details.telecomCallId
         liveCalls[callId] = call // Update reference
         _calls.update { calls ->
             val existing = calls[callId]
@@ -96,9 +96,8 @@ object CallStateBridge {
                 calls + (callId to existing.copy(
                     number = details.handle?.schemeSpecificPart,
                     displayName = details.handle?.schemeSpecificPart,
-                    isVideo = details.hasProperty(Details.PROPERTY_B2B_VIDEO) ||
-                        details.hasProperty(Details.PROPERTY_START_CALL_WITH_VIDEO_STATE),
-                    isMuted = call.audioState?.isMuted ?: false,
+                    isVideo = details.videoState != VideoProfile.STATE_AUDIO_ONLY,
+                    isMuted = false,
                     state = details.state
                 ))
             } else {
@@ -142,7 +141,7 @@ object CallStateBridge {
     }
 
     private fun updateCallCapabilities(call: Call, transform: CallInfo.Capabilities.() -> CallInfo.Capabilities) {
-        val callId = call.id
+        val callId = call.details.telecomCallId
         _calls.update { calls ->
             val existing = calls[callId]
             if (existing != null) {
@@ -180,7 +179,7 @@ object CallStateBridge {
         liveCalls.clear()
         val newCalls = mutableMapOf<String, CallInfo>()
         for (call in calls) {
-            val callId = call.id
+            val callId = call.details.telecomCallId
             liveCalls[callId] = call
             newCalls[callId] = CallInfo.fromCall(call)
         }
@@ -229,6 +228,14 @@ object CallStateBridge {
 
     fun getLiveCall(callId: String): Call? = liveCalls[callId]
 
+    /**
+     * Snapshot of the tracked live calls.
+     *
+     * Replaces TelecomManager.getActiveCalls(), which is @hide and therefore
+     * unavailable to an ordinary app.
+     */
+    fun activeCallsSnapshot(): List<Call> = liveCalls.values.toList()
+
     fun getCallInfo(callId: String): CallInfo? = _calls.value[callId]
 
     data class CallInfo(
@@ -257,35 +264,40 @@ object CallStateBridge {
             /**
              * Snapshots a live Call.
              *
-             * The previous version read callId, isMuted, startTimeMillis and
-             * can(...) off Call.Details. None of those exist there: the call id
-             * and the audio state live on Call, and Call exposes its capability
-             * query as hasCapabilities(...), not Details.can(...). Call also has
-             * no per-call start time, so the start timestamp is recorded the
-             * first time the call is observed rather than read from the API.
+             * Everything read here is on Call.Details, verified against the
+             * android14-release Call.java: Details exposes getTelecomCallId(),
+             * getState(), getHandle(), getVideoState(), getConnectTimeMillis(),
+             * getSupportedAudioRoutes() and can(int). Call itself exposes none
+             * of them - it only has getDetails(), disconnect, accept, reject,
+             * answer, deflect, hold and the RTT/video accessors - so the earlier
+             * call.id, call.audioState and call.hasCapabilities(...) reads could
+             * not resolve.
+             *
+             * Call offers no mute state, so isMuted is always false here; the
+             * mute flag is tracked by the UI instead.
              */
             fun fromCall(call: Call, observedAt: Long = System.currentTimeMillis()): CallInfo {
                 val details = call.details
-                val audioState = call.audioState
                 return CallInfo(
-                    callId = call.id,
+                    callId = call.details.telecomCallId,
                     number = details.handle?.schemeSpecificPart,
                     displayName = details.handle?.schemeSpecificPart,
                     state = details.state,
-                    isVideo = details.hasProperty(Details.PROPERTY_B2B_VIDEO) ||
-                        details.hasProperty(Details.PROPERTY_START_CALL_WITH_VIDEO_STATE),
-                    isMuted = audioState?.isMuted ?: false,
+                    isVideo = details.videoState != VideoProfile.STATE_AUDIO_ONLY,
+                    isMuted = false,
                     isOnHold = details.state == Call.STATE_HOLDING,
-                    isSpeaker = audioState?.route == android.telecom.CallAudioState.ROUTE_SPEAKER,
-                    audioRoute = audioState?.route ?: 0,
-                    startTime = observedAt,
-                    duration = 0,
-                    canHold = call.state != android.telecom.Call.STATE_DISCONNECTED,
-                    canMerge = call.hasCapabilities(android.telecom.Call.CAPABILITY_MERGE_CONFERENCE),
-                    canSwap = call.hasCapabilities(android.telecom.Call.CAPABILITY_SWAP_CONFERENCE),
-                    canConference = call.hasCapabilities(android.telecom.Call.CAPABILITY_ADD_PARTICIPANT),
-                    canDisconnect = call.state != android.telecom.Call.STATE_DISCONNECTED,
-                    canAddCall = call.hasCapabilities(android.telecom.Call.CAPABILITY_ADD_PARTICIPANT)
+                    isSpeaker = false,
+                    // Call exposes no current audio route; the InCallService
+                    // callback onCallAudioStateChanged supplies it instead.
+                    audioRoute = 0,
+                    startTime = details.connectTimeMillis,
+                    duration = if (details.connectTimeMillis > 0) observedAt - details.connectTimeMillis else 0,
+                    canHold = details.state != Call.STATE_DISCONNECTED,
+                    canMerge = details.can(Details.CAPABILITY_MERGE_CONFERENCE),
+                    canSwap = details.can(Details.CAPABILITY_SWAP_CONFERENCE),
+                    canConference = details.can(Details.CAPABILITY_ADD_PARTICIPANT),
+                    canDisconnect = details.state != Call.STATE_DISCONNECTED,
+                    canAddCall = details.can(Details.CAPABILITY_ADD_PARTICIPANT)
                 )
             }
         }
@@ -299,7 +311,7 @@ object CallStateBridge {
             Call.STATE_RINGING -> "RINGING"
             Call.STATE_DISCONNECTING -> "DISCONNECTING"
             Call.STATE_DISCONNECTED -> "DISCONNECTED"
-            Call.STATE_PAUSED -> "PAUSED"
+            Call.STATE_PULLING_CALL -> "PULLING"
             else -> "UNKNOWN($state)"
         }
 
@@ -350,18 +362,17 @@ class InCallServiceImpl : InCallService() {
 
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
-        Log.d(logTag, "onCallAdded: ${call.id}, state: ${call.details.state}")
+        Log.d(logTag, "onCallAdded: ${call.details.telecomCallId}, state: ${call.details.state}")
         // A single onCallAdded fires for the whole life of the call, so it is
         // also where state, details and audio route changes are observed.
         CallStateBridge.onCallAdded(call)
         CallStateBridge.onCallStateChanged(call, call.details.state)
         CallStateBridge.onCallDetailsChanged(call, call.details)
-        call.audioState?.let { CallStateBridge.onAudioRouteChanged(it.route) }
     }
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
-        Log.d(logTag, "onCallRemoved: ${call.id}")
+        Log.d(logTag, "onCallRemoved: ${call.details.telecomCallId}")
         CallStateBridge.onCallRemoved(call)
     }
 
@@ -382,7 +393,7 @@ class InCallServiceImpl : InCallService() {
      */
     override fun onCallAudioStateChanged(call: Call, audioState: CallAudioState) {
         super.onCallAudioStateChanged(call, audioState)
-        Log.d(logTag, "onCallAudioStateChanged: ${call.id}, route: ${audioState.route}")
+        Log.d(logTag, "onCallAudioStateChanged: ${call.details.telecomCallId}, route: ${audioState.route}")
         CallStateBridge.onAudioRouteChanged(audioState.route)
     }
 

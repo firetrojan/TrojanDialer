@@ -111,7 +111,11 @@ class TelecomRepository(private val context: Context) {
     }
 
     fun getDefaultSmsSubscriptionId(): Int {
-        return subscriptionManager.getDefaultSmsSubscriptionId()
+        // SubscriptionManager.getDefaultSmsSubscriptionId() is not public SDK.
+        // The default SMS SIM is the one flagged as the default by
+        // PackageManager, which is not reachable from a normal app, so the
+        // primary SIM is used and -1 is returned when there is none.
+        return primarySubscriptionId()
     }
 
     fun getDefaultDataSubscriptionId(): Int {
@@ -219,9 +223,15 @@ class TelecomRepository(private val context: Context) {
         return telecomManager.isInCall
     }
 
+    /**
+     * Live calls, from the app's own registry.
+     *
+     * TelecomManager.getActiveCalls() is @hide / @SystemApi, so it is not
+     * available to a normal app. CallStateBridge tracks calls from the
+     * InCallService callbacks instead.
+     */
     fun getActiveCallsLegacy(): List<Call> {
-        val telecomManager = context.getSystemService(TelecomManager::class.java)
-        return telecomManager.activeCalls ?: emptyList()
+        return CallStateBridge.activeCallsSnapshot()
     }
 
     fun getSubscriptionInfo(subscriptionId: Int): SubscriptionInfo? {
@@ -280,7 +290,7 @@ class TelecomRepository(private val context: Context) {
             Call.STATE_RINGING -> "RINGING"
             Call.STATE_DISCONNECTING -> "DISCONNECTING"
             Call.STATE_DISCONNECTED -> "DISCONNECTED"
-            Call.STATE_PAUSED -> "PAUSED"
+            Call.STATE_PULLING_CALL -> "PULLING"
             else -> "UNKNOWN($state)"
         }
     }
@@ -295,7 +305,7 @@ class TelecomRepository(private val context: Context) {
             Call.STATE_RINGING -> "RINGING"
             Call.STATE_DISCONNECTING -> "DISCONNECTING"
             Call.STATE_DISCONNECTED -> "DISCONNECTED"
-            Call.STATE_PAUSED -> "PAUSED"
+            Call.STATE_PULLING_CALL -> "PULLING"
             else -> "UNKNOWN($state)"
         }
     }
