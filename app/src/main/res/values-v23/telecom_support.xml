@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    API 23+: android.telecom.InCallService is available, so the in-call service
+    may be enabled. Call screening stays off because CallScreeningService
+    requires API 24.
+-->
+<resources>
+    <bool name="is_telecom_supported">true</bool>
+    <bool name="is_call_screening_supported">false</bool>
+</resources>

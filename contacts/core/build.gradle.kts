@@ -1,0 +1,39 @@
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
+}
+
+android {
+    namespace = "com.communicator.contacts.core"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 21
+        targetSdk = 34
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+
+}
+
+dependencies {
+    api(project(":core:common"))
+    api(project(":data:core"))
+    api("androidx.room:room-ktx:2.7.2")
+    api("androidx.room:room-runtime:2.7.2")
+    ksp("androidx.room:room-compiler:2.7.2")
+    api("androidx.core:core-ktx:1.13.1")
+    api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+}

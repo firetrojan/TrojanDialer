@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    API-level gates for manifest components that extend platform classes newer
+    than the project's minSdk of 21.
+
+    android.telecom.InCallService        : API 23
+    android.telecom.CallScreeningService : API 24
+
+    Default (this file, API 21-22): both disabled. The app can still place calls
+    through TelecomManager; it simply does not receive the in-call UI service or
+    pre-call screening on releases that cannot provide them.
+-->
+<resources>
+    <bool name="is_telecom_supported">false</bool>
+    <bool name="is_call_screening_supported">false</bool>
+</resources>

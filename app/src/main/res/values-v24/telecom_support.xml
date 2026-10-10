@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    API 24+: both android.telecom.InCallService (23) and
+    android.telecom.CallScreeningService (24) are available, so both manifest
+    components may be enabled.
+-->
+<resources>
+    <bool name="is_telecom_supported">true</bool>
+    <bool name="is_call_screening_supported">true</bool>
+</resources>
