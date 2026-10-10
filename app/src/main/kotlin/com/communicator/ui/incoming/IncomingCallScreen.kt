@@ -1,5 +1,6 @@
 package com.communicator.ui.incoming
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.*
 import androidx.compose.material3.*
@@ -42,14 +43,14 @@ fun IncomingCallScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextButton(
+            OutlinedButton(
                 onClick = { onAnswer() },
                 modifier = Modifier.weight(1f)
             ) {
                 Text("Answer")
             }
 
-            OutlinedTextButton(
+            OutlinedButton(
                 onClick = { onReject() },
                 modifier = Modifier.weight(1f)
             ) {

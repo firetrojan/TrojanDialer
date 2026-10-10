@@ -36,7 +36,7 @@ class PhoneAccountDiagnostics(private val context: Context) {
         val accounts = handles.mapNotNull { handle ->
             val account = telecomManager.getPhoneAccount(handle)
             account?.let {
-                val subscriptionId = it.extras?.getInt(PhoneAccount.EXTRA_SUBSCRIPTION_ID, -1) ?: -1
+                val subscriptionId = subscriptionIdFromExtras(it.handle)
                 val hasSubscriptionId = subscriptionId >= 0
                 
                 PhoneAccountInfo(
@@ -48,7 +48,9 @@ class PhoneAccountDiagnostics(private val context: Context) {
                     subscriptionId = subscriptionId,
                     hasSubscriptionId = hasSubscriptionId,
                     supportsVideo = it.hasCapabilities(PhoneAccount.CAPABILITY_VIDEO_CALLING),
-                    carrierName = it.extras?.getString(PhoneAccount.EXTRA_CARRIER_NAME)
+                    carrierName = activeSubscriptions()
+                        .firstOrNull { sub -> sub.subscriptionId == subscriptionIdFromExtras(it.handle) }
+                        ?.carrierName?.toString()
                 )
             }
         }
@@ -64,13 +66,31 @@ class PhoneAccountDiagnostics(private val context: Context) {
     }
 
     fun getSubscriptionForPhoneAccount(handle: PhoneAccountHandle): SubscriptionInfo? {
-        val account = telecomManager.getPhoneAccount(handle)
-        val subId = account?.extras?.getInt(PhoneAccount.EXTRA_SUBSCRIPTION_ID, -1) ?: -1
+        val subId = subscriptionIdFromExtras(handle)
         if (subId >= 0) {
-            return subscriptionManager.getSubscriptionInfo(subId)
+            return activeSubscriptions().firstOrNull { it.subscriptionId == subId }
         }
         return null
     }
+
+    /**
+     * Subscription id carried in the PhoneAccount extras, or -1.
+     *
+     * The bundle key is "subscription_id": telecom writes it into the account
+     * extras, but PhoneAccount exposes no public constant for it, so it is
+     * referenced by name.
+     */
+    private fun subscriptionIdFromExtras(handle: PhoneAccountHandle): Int {
+        val extras = telecomManager.getPhoneAccount(handle)?.extras ?: return -1
+        return if (extras.containsKey(KEY_SUBSCRIPTION_ID)) {
+            extras.getInt(KEY_SUBSCRIPTION_ID, -1)
+        } else {
+            -1
+        }
+    }
+
+    private fun activeSubscriptions(): List<SubscriptionInfo> =
+        subscriptionManager.activeSubscriptionInfoList ?: emptyList()
 
     fun findPhoneAccountByLabel(label: String): PhoneAccountInfo? {
         return _phoneAccounts.value.find { it.label == label }
@@ -82,19 +102,18 @@ class PhoneAccountDiagnostics(private val context: Context) {
 
     /**
      * Attempts to map PhoneAccount to SubscriptionInfo using multiple strategies:
-     * 1. EXTRA_SUBSCRIPTION_ID in PhoneAccount extras (most reliable)
-     * 2. Carrier name matching with SubscriptionInfo carrierName
-     * 3. MCC/MNC matching
+     * 1. subscription id in the PhoneAccount extras (most reliable)
+     * 2. carrier name matching against SubscriptionInfo.carrierName
      * Returns null if mapping cannot be determined reliably.
      */
     fun resolveSubscriptionForPhoneAccount(handle: PhoneAccountHandle): PhoneAccountDiagnostics.SubscriptionMapping? {
         val account = telecomManager.getPhoneAccount(handle)
         val accountExtras = account?.extras
         
-        // Strategy 1: EXTRA_SUBSCRIPTION_ID
-        val subId = accountExtras?.getInt(PhoneAccount.EXTRA_SUBSCRIPTION_ID, -1) ?: -1
+        // Strategy 1: subscription id in the PhoneAccount extras
+        val subId = subscriptionIdFromExtras(handle)
         if (subId >= 0) {
-            val subInfo = subscriptionManager.getSubscriptionInfo(subId)
+            val subInfo = activeSubscriptions().firstOrNull { it.subscriptionId == subId }
             if (subInfo != null) {
                 return PhoneAccountDiagnostics.SubscriptionMapping(
                     phoneAccountHandle = handle,
@@ -107,7 +126,7 @@ class PhoneAccountDiagnostics(private val context: Context) {
         }
 
         // Strategy 2: Carrier name matching
-        val carrierName = accountExtras?.getString(PhoneAccount.EXTRA_CARRIER_NAME)
+        val carrierName = accountExtras?.getCharSequence(KEY_CARRIER_NAME)?.toString()
         if (carrierName != null && carrierName.isNotBlank()) {
             val matchingSub = _subscriptions.value.find { sub ->
                 sub.carrierName?.toString()?.equals(carrierName, ignoreCase = true) == true
@@ -123,25 +142,8 @@ class PhoneAccountDiagnostics(private val context: Context) {
             }
         }
 
-        // Strategy 3: MCC/MNC matching (if available in extras)
-        val mcc = accountExtras?.getInt(PhoneAccount.EXTRA_MCC, -1) ?: -1
-        val mnc = accountExtras?.getInt(PhoneAccount.EXTRA_MNC, -1) ?: -1
-        if (mcc >= 0 && mnc >= 0) {
-            val matchingSub = _subscriptions.value.find { sub ->
-                sub.mcc == mcc && sub.mnc == mnc
-            }
-            if (matchingSub != null) {
-                return PhoneAccountDiagnostics.SubscriptionMapping(
-                    phoneAccountHandle = handle,
-                    subscriptionId = matchingSub.subscriptionId,
-                    subscriptionInfo = matchingSub,
-                    mappingMethod = PhoneAccountDiagnostics.MappingMethod.MCC_MNC_MATCH,
-                    confidence = PhoneAccountDiagnostics.Confidence.MEDIUM
-                )
-            }
-        }
 
-        // Strategy 4: Single SIM fallback
+        // Strategy 3: Single SIM fallback
         if (_subscriptions.value.size == 1 && _phoneAccounts.value.size == 1) {
             val singleSub = _subscriptions.value.first()
             return PhoneAccountDiagnostics.SubscriptionMapping(
@@ -173,12 +175,10 @@ class PhoneAccountDiagnostics(private val context: Context) {
             if (capabilities and PhoneAccount.CAPABILITY_VIDEO_CALLING != 0) labels.add("VIDEO_CALLING")
             if (capabilities and PhoneAccount.CAPABILITY_CONNECTION_MANAGER != 0) labels.add("CONNECTION_MANAGER")
             if (capabilities and PhoneAccount.CAPABILITY_SELF_MANAGED != 0) labels.add("SELF_MANAGED")
-            if (capabilities and PhoneAccount.CAPABILITY_SIP != 0) labels.add("SIP")
             if (capabilities and PhoneAccount.CAPABILITY_PLACE_EMERGENCY_CALLS != 0) labels.add("PLACE_EMERGENCY_CALLS")
-            if (capabilities and PhoneAccount.CAPABILITY_MULTI_USER != 0) labels.add("MULTI_USER")
-            if (capabilities and PhoneAccount.CAPABILITY_HOLD != 0) labels.add("HOLD")
-            if (capabilities and PhoneAccount.CAPABILITY_ADD_CALL != 0) labels.add("ADD_CALL")
-            if (capabilities and PhoneAccount.CAPABILITY_CONFERENCE != 0) labels.add("CONFERENCE")
+            if (capabilities and PhoneAccount.CAPABILITY_CALL_COMPOSER != 0) labels.add("CALL_COMPOSER")
+            if (capabilities and PhoneAccount.CAPABILITY_SUPPORTS_CALL_STREAMING != 0) labels.add("SUPPORTS_CALL_STREAMING")
+            if (capabilities and PhoneAccount.CAPABILITY_RTT != 0) labels.add("RTT")
             return labels
         }
     }

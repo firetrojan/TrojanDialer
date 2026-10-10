@@ -122,7 +122,11 @@ class SmsRepository(
         message?.let { msg ->
             val conversation = ConversationEntity(
                 threadId = msg.threadId,
-                participant = if (msg.direction == SmsMessageDirection.OUTGOING) msg.recipients.firstOrNull() ?? "" else msg.sender,
+                participant = if (msg.direction == SmsMessageDirection.OUTGOING) {
+                    msg.recipients.firstOrNull() ?: ""
+                } else {
+                    msg.sender
+                },
                 contactId = null,
                 lastMessageId = msg.messageId,
                 lastMessageContent = msg.content,

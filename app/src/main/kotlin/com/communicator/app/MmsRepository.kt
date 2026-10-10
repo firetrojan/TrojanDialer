@@ -95,7 +95,7 @@ class MmsRepository(
                 textContent = textContent,
                 attachments = attachments.map { att ->
                     MmsAttachment(
-                        contentUri = android.net.Uri.parse(att.uri),
+                        contentUri = att.contentUri,
                         mimeType = att.mimeType,
                         filename = att.filename,
                         contentId = att.contentId,
@@ -112,31 +112,26 @@ class MmsRepository(
         }
     }
 
-    suspend fun getMms(mmsId: String): com.communicator.communication.mms.MmsMessage? {
+    suspend fun getMms(mmsId: String): MmsMessage? {
         val transport = getActiveTransport()
         return transport?.getMms(mmsId)
     }
 
-    suspend fun getThreads(): Flow<List<com.communicator.communication.mms.MmsThread>> {
+    suspend fun getThreads(): Flow<List<MmsThread>> {
         val transport = getActiveTransport()
         return transport?.getThreads() ?: kotlinx.coroutines.flow.flow { }
     }
 
-    suspend fun getMessages(threadId: String): Flow<List<com.communicator.communication.mms.MmsMessage>> {
+    suspend fun getMessages(threadId: String): Flow<List<MmsMessage>> {
         val transport = getActiveTransport()
         return transport?.getMessages(threadId) ?: kotlinx.coroutines.flow.flow { }
-    }
-
-    suspend fun getMms(mmsId: String): com.communicator.communication.mms.MmsMessage? {
-        val transport = getActiveTransport()
-        return transport?.getMms(mmsId)
     }
 
     fun getActiveTransport(): MmsTransportImpl? {
         return activeSubscriptionId.value?.let { transports[it] }
     }
 
-    suspend fun observeMms(): Flow<com.communicator.communication.mms.MmsMessage> {
+    suspend fun observeMms(): Flow<MmsMessage> {
         val transport = getActiveTransport()
         return transport?.observeMms() ?: kotlinx.coroutines.flow.flow { }
     }
